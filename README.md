@@ -7,6 +7,8 @@ Funciona **offline** en un solo dispositivo usando `localStorage`, con respaldo 
 ## Pantallas
 
 1. **⚙️ Configuración** — Datos de las dos competencias (nombre, distancia, hora de salida) e importación de la base de datos de ciclistas desde un **CSV delimitado por `;`**.
+   - **Agregar participante** manualmente (categoría, dorsal, nombre, equipo) después de cargar el CSV, con validación de dorsal duplicado.
+   - **Ver / editar ciclistas cargados**: lista desplegable con edición inline (✏️) y eliminación (🗑️) de cada ciclista.
 2. **🚦 Salidas** — Reloj en vivo + cronómetros por competencia + panel para dar salida:
    - Se **marcan** las categorías que arrancan en la tanda y se aprieta el botón grande **▶️ DAR SALIDA** en el instante del banderazo (hora exacta del clic, sin desfase).
    - Si **no** hay ninguna categoría marcada, el botón da **salida general** a toda la competencia.

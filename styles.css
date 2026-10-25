@@ -103,6 +103,38 @@ input[type="file"] { padding: 8px; }
 }
 .count.ok { color: #86efac; }
 
+/* Agregar participante */
+.add-part {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.add-part h4 { margin: 0 0 8px; font-size: 0.95rem; }
+.add-grid { display: flex; flex-direction: column; gap: 6px; }
+.add-grid input { margin-top: 0; }
+.add-grid .add-btn { margin-top: 2px; }
+.add-msg { min-height: 1.4em; font-size: 0.85rem; margin-top: 6px; }
+.add-msg .ok { color: #86efac; }
+.add-msg .err { color: #f87171; }
+
+.lista-part { margin-top: 12px; }
+.lista-part summary {
+  cursor: pointer;
+  color: #93c5fd;
+  font-size: 0.9rem;
+  padding: 6px 0;
+}
+.tabla-ciclistas th, .tabla-ciclistas td { padding: 6px 8px; font-size: 0.85rem; }
+.tabla-ciclistas th { cursor: default; }
+.tabla-ciclistas input { padding: 5px; font-size: 0.85rem; }
+.link-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0 3px;
+}
+
 .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
 
 .btn {

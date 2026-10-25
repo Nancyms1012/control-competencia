@@ -110,6 +110,7 @@ function manejarCSV(compNum, file) {
     actualizarCount(compNum);
     rellenarFiltroCategorias();
     renderSalidasCat();
+    renderTablaCiclistas(compNum);
   };
   reader.readAsText(file, "UTF-8");
 }
@@ -125,6 +126,135 @@ function actualizarCount(compNum) {
     countEl.classList.remove("ok");
   }
 }
+
+/* ---------------- Agregar / editar participantes ---------------- */
+function agregarParticipante(n) {
+  const cat = document.getElementById(`comp${n}-add-cat`).value.trim();
+  const dorsal = document.getElementById(`comp${n}-add-dorsal`).value.trim();
+  const nombre = document.getElementById(`comp${n}-add-nombre`).value.trim();
+  const equipo = document.getElementById(`comp${n}-add-equipo`).value.trim();
+  const msg = document.getElementById(`comp${n}-add-msg`);
+
+  if (!dorsal || !nombre) {
+    msg.innerHTML = `<span class="err">⚠️ Dorsal y Nombre son obligatorios.</span>`;
+    return;
+  }
+  // dorsal repetido en esta competencia
+  if (estado.comps[n].ciclistas.some((c) => c.dorsal === dorsal)) {
+    msg.innerHTML = `<span class="err">⚠️ El dorsal <b>${dorsal}</b> ya existe en esta competencia.</span>`;
+    return;
+  }
+
+  estado.comps[n].ciclistas.push({
+    categoria: cat || "Sin categoría",
+    dorsal,
+    nombre,
+    equipo,
+  });
+  guardar();
+  actualizarCount(n);
+  rellenarFiltroCategorias();
+  renderSalidasCat();
+  renderTablaCiclistas(n);
+
+  msg.innerHTML = `<span class="ok">✅ Agregado: dorsal ${dorsal} — ${nombre}.</span>`;
+  // limpiar campos (deja la categoría para agregar varios de la misma)
+  document.getElementById(`comp${n}-add-dorsal`).value = "";
+  document.getElementById(`comp${n}-add-nombre`).value = "";
+  document.getElementById(`comp${n}-add-equipo`).value = "";
+  document.getElementById(`comp${n}-add-dorsal`).focus();
+  setTimeout(() => (msg.innerHTML = ""), 4000);
+}
+
+function renderTablaCiclistas(n) {
+  const tbody = document.querySelector(`#comp${n}-tabla-ciclistas tbody`);
+  if (!tbody) return;
+  const lista = estado.comps[n].ciclistas;
+  tbody.innerHTML = "";
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Sin ciclistas.</td></tr>`;
+    return;
+  }
+  // ordenar por dorsal numérico para que sea fácil de encontrar
+  const orden = [...lista].sort((a, b) => Number(a.dorsal) - Number(b.dorsal) || a.dorsal.localeCompare(b.dorsal));
+  orden.forEach((c) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><b>${c.dorsal}</b></td>
+      <td>${c.nombre}</td>
+      <td>${c.categoria}</td>
+      <td>${c.equipo || "—"}</td>
+      <td>
+        <button class="link-edit" data-comp="${n}" data-dorsal="${c.dorsal}">✏️</button>
+        <button class="link-del" data-comp="${n}" data-dorsal="${c.dorsal}">🗑️</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll(".link-del").forEach((b) =>
+    b.addEventListener("click", () => eliminarParticipante(Number(b.dataset.comp), b.dataset.dorsal)));
+  tbody.querySelectorAll(".link-edit").forEach((b) =>
+    b.addEventListener("click", () => editarParticipanteInline(Number(b.dataset.comp), b.dataset.dorsal)));
+}
+
+function eliminarParticipante(n, dorsal) {
+  if (!confirm(`¿Eliminar al ciclista con dorsal ${dorsal} de esta competencia?`)) return;
+  estado.comps[n].ciclistas = estado.comps[n].ciclistas.filter((c) => c.dorsal !== dorsal);
+  guardar();
+  actualizarCount(n);
+  rellenarFiltroCategorias();
+  renderSalidasCat();
+  renderTablaCiclistas(n);
+}
+
+function editarParticipanteInline(n, dorsal) {
+  const c = estado.comps[n].ciclistas.find((x) => x.dorsal === dorsal);
+  if (!c) return;
+  const tbody = document.querySelector(`#comp${n}-tabla-ciclistas tbody`);
+  // buscar la fila
+  const filas = [...tbody.querySelectorAll("tr")];
+  const tr = filas.find((f) => f.querySelector("b") && f.querySelector("b").textContent === dorsal);
+  if (!tr) return;
+  tr.innerHTML = `
+    <td><input class="ed-dorsal" type="number" value="${c.dorsal}" style="width:70px" /></td>
+    <td><input class="ed-nombre" type="text" value="${c.nombre.replace(/"/g, "&quot;")}" /></td>
+    <td><input class="ed-cat" type="text" value="${c.categoria.replace(/"/g, "&quot;")}" /></td>
+    <td><input class="ed-equipo" type="text" value="${(c.equipo || "").replace(/"/g, "&quot;")}" /></td>
+    <td>
+      <button class="link-edit ed-ok">✅</button>
+      <button class="link-del ed-cancel">✖️</button>
+    </td>`;
+  tr.querySelector(".ed-ok").addEventListener("click", () => {
+    const nuevoDorsal = tr.querySelector(".ed-dorsal").value.trim();
+    const nuevoNombre = tr.querySelector(".ed-nombre").value.trim();
+    if (!nuevoDorsal || !nuevoNombre) { alert("Dorsal y Nombre son obligatorios."); return; }
+    // si cambió el dorsal, verificar que no choque con otro
+    if (nuevoDorsal !== dorsal && estado.comps[n].ciclistas.some((x) => x.dorsal === nuevoDorsal)) {
+      alert(`El dorsal ${nuevoDorsal} ya existe en esta competencia.`);
+      return;
+    }
+    c.dorsal = nuevoDorsal;
+    c.nombre = nuevoNombre;
+    c.categoria = tr.querySelector(".ed-cat").value.trim() || "Sin categoría";
+    c.equipo = tr.querySelector(".ed-equipo").value.trim();
+    guardar();
+    actualizarCount(n);
+    rellenarFiltroCategorias();
+    renderSalidasCat();
+    renderTablaCiclistas(n);
+  });
+  tr.querySelector(".ed-cancel").addEventListener("click", () => renderTablaCiclistas(n));
+}
+
+document.querySelectorAll(".add-btn").forEach((b) =>
+  b.addEventListener("click", () => agregarParticipante(Number(b.dataset.comp))));
+// Enter en los campos de agregar participante
+[1, 2].forEach((n) => {
+  ["cat", "dorsal", "nombre", "equipo"].forEach((campo) => {
+    const el = document.getElementById(`comp${n}-add-${campo}`);
+    if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") agregarParticipante(n); });
+  });
+});
 
 document.getElementById("comp1-csv").addEventListener("change", (e) => {
   if (e.target.files[0]) manejarCSV(1, e.target.files[0]);
@@ -161,6 +291,7 @@ function pintarConfig() {
     document.getElementById(`comp${n}-distancia`).value = estado.comps[n].distancia || "";
     document.getElementById(`comp${n}-salida`).value = estado.comps[n].salida || "";
     actualizarCount(n);
+    renderTablaCiclistas(n);
   }
 }
 
