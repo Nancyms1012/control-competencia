@@ -147,6 +147,22 @@ input[type="file"] { padding: 8px; }
 }
 .comp-clock b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; color: #93c5fd; }
 .comp-clock.waiting b { color: var(--muted); }
+.comp-clock.parado b { color: #fbbf24; }
+.btn-parar {
+  margin-top: 8px;
+  width: 100%;
+  background: #7f1d1d;
+  color: #fff;
+  border: none;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.btn-parar:hover { background: #991b1b; }
+.btn-parar.reanudar { background: var(--green); }
+.btn-parar.reanudar:hover { background: #15803d; }
 .btn-salida {
   margin-top: 8px;
   width: 100%;

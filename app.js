@@ -9,8 +9,9 @@ function estadoInicial() {
   return {
     comps: {
       // salida = hora de salida general (respaldo). salidasCat = { "Categoría": "HH:MM:SS" } salidas por categoría
-      1: { nombre: "", distancia: "", salida: "", ciclistas: [], salidasCat: {} },
-      2: { nombre: "", distancia: "", salida: "", ciclistas: [], salidasCat: {} },
+      // paradoEn = segundos del día en que se congeló el crono (null = corriendo)
+      1: { nombre: "", distancia: "", salida: "", ciclistas: [], salidasCat: {}, paradoEn: null },
+      2: { nombre: "", distancia: "", salida: "", ciclistas: [], salidasCat: {}, paradoEn: null },
     },
     // llegadas: { dorsal, comp, horaLlegada(ISO), nombre, categoria, equipo }
     llegadas: [],
@@ -32,6 +33,8 @@ function cargar() {
     base.comps[2].ciclistas = data.comps?.[2]?.ciclistas || [];
     base.comps[1].salidasCat = data.comps?.[1]?.salidasCat || {};
     base.comps[2].salidasCat = data.comps?.[2]?.salidasCat || {};
+    base.comps[1].paradoEn = data.comps?.[1]?.paradoEn ?? null;
+    base.comps[2].paradoEn = data.comps?.[2]?.paradoEn ?? null;
     base.llegadas = Array.isArray(data.llegadas) ? data.llegadas : [];
     return base;
   } catch (e) {
@@ -207,14 +210,17 @@ function tickClock() {
       box.classList.add("waiting");
       return;
     }
-    const ahora = tiempoDelDiaSeg(new Date());
-    const transcurrido = ahora - salSeg;
+    const paradoEn = estado.comps[n].paradoEn;
+    const refAhora = (paradoEn != null) ? paradoEn : tiempoDelDiaSeg(new Date());
+    const transcurrido = refAhora - salSeg;
     if (transcurrido < 0) {
       bEl.textContent = "Falta " + segundosAStr(-transcurrido);
       box.classList.add("waiting");
+      box.classList.remove("parado");
     } else {
-      bEl.textContent = segundosAStr(transcurrido);
+      bEl.textContent = segundosAStr(transcurrido) + (paradoEn != null ? " ⏹️" : "");
       box.classList.remove("waiting");
+      box.classList.toggle("parado", paradoEn != null);
     }
   });
 }
@@ -232,7 +238,7 @@ function salidaMasTempranaSeg(n) {
 
 function renderClocks() {
   const cont = document.getElementById("comp-clocks");
-  pintarCronometros(cont);
+  pintarCronometros(cont, true); // con botón parar/reanudar
   tickClock();
 }
 
@@ -240,12 +246,12 @@ function renderClocks() {
 function renderClocksRegistro() {
   const cont = document.getElementById("comp-clocks-registro");
   if (!cont) return;
-  pintarCronometros(cont);
+  pintarCronometros(cont, false); // solo visual, sin botón
   tickClock();
 }
 
 // Pinta las cajitas de cronómetro para cada competencia en el contenedor dado
-function pintarCronometros(cont) {
+function pintarCronometros(cont, conBoton) {
   cont.innerHTML = "";
   for (const n of [1, 2]) {
     const c = estado.comps[n];
@@ -256,11 +262,33 @@ function pintarCronometros(cont) {
     const nombre = c.nombre || `Competencia ${n}`;
     const salMin = salidaMasTempranaSeg(n);
     const etiqueta = salMin == null ? "sin salida" : `desde ${segundosAStr(salMin)}`;
+    const parado = c.paradoEn != null;
+    const btn = conBoton
+      ? `<button class="btn-parar ${parado ? "reanudar" : ""}" data-comp="${n}">${parado ? "▶️ Reanudar" : "⏹️ Parar"}</button>`
+      : "";
     div.innerHTML = `
       <span>${nombre} <small>(${etiqueta})</small></span>
-      <b>--:--:--</b>`;
+      <b>--:--:--</b>
+      ${btn}`;
     cont.appendChild(div);
   }
+  if (conBoton) {
+    cont.querySelectorAll(".btn-parar").forEach((b) =>
+      b.addEventListener("click", () => toggleParar(Number(b.dataset.comp))));
+  }
+}
+
+// Para / reanuda el cronómetro visual de una competencia (no afecta los tiempos de los ciclistas)
+function toggleParar(n) {
+  const c = estado.comps[n];
+  if (c.paradoEn != null) {
+    c.paradoEn = null; // reanudar
+  } else {
+    c.paradoEn = tiempoDelDiaSeg(new Date()); // congelar en la hora actual
+  }
+  guardar();
+  renderClocks();
+  renderClocksRegistro();
 }
 
 // Da salida general a toda la competencia (hora actual)
@@ -612,6 +640,107 @@ function renderResultados() {
 document.getElementById("filtro-comp").addEventListener("change", renderResultados);
 document.getElementById("filtro-cat").addEventListener("change", renderResultados);
 document.getElementById("btn-imprimir").addEventListener("click", () => window.print());
+
+/* ---------------- Exportar resultados a CSV (Excel) ---------------- */
+// Devuelve las llegadas filtradas según los selects de competencia y categoría
+function llegadasFiltradas() {
+  const compF = document.getElementById("filtro-comp").value;
+  const catF = document.getElementById("filtro-cat").value;
+  let lista = [...estado.llegadas];
+  if (compF !== "all") lista = lista.filter((l) => String(l.comp) === compF);
+  if (catF !== "all") lista = lista.filter((l) => l.categoria === catF);
+  return { lista, compF, catF };
+}
+
+// Escapa un campo para CSV con ; (envuelve en comillas si trae ; " o salto de línea)
+function csvCampo(v) {
+  const s = String(v == null ? "" : v);
+  if (/[;"\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function descargarCSV(nombre, filas) {
+  // BOM para que Excel reconozca los acentos (UTF-8)
+  const contenido = "\uFEFF" + filas.map((f) => f.map(csvCampo).join(";")).join("\r\n");
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function nombreComp(n) {
+  return estado.comps[n].nombre || `Competencia ${n}`;
+}
+
+// Export POR CATEGORÍA: agrupa por competencia+categoría, posición dentro de cada grupo
+document.getElementById("btn-export-cat").addEventListener("click", () => {
+  const { lista } = llegadasFiltradas();
+  if (lista.length === 0) {
+    alert("No hay resultados para exportar con los filtros seleccionados.");
+    return;
+  }
+  // Agrupar por competencia+categoría
+  const grupos = {};
+  lista.forEach((l) => {
+    const key = `${l.comp}||${l.categoria}`;
+    (grupos[key] = grupos[key] || []).push(l);
+  });
+  const keys = Object.keys(grupos).sort((a, b) => {
+    const [ca, cata] = a.split("||");
+    const [cb, catb] = b.split("||");
+    if (ca !== cb) return ca.localeCompare(cb);
+    return cata.localeCompare(catb, "es");
+  });
+
+  const filas = [["Posición", "Dorsal", "Nombre", "Equipo", "Categoría", "Competencia", "Hora llegada", "Tiempo"]];
+  keys.forEach((key) => {
+    const grupo = grupos[key].sort((x, y) => tiempoSegundos(x) - tiempoSegundos(y));
+    grupo.forEach((l, i) => {
+      filas.push([
+        i + 1,
+        l.dorsal,
+        l.nombre,
+        l.equipo || "",
+        l.categoria,
+        nombreComp(l.comp),
+        new Date(l.horaLlegada).toLocaleTimeString("es-CR"),
+        calcularTiempo(l),
+      ]);
+    });
+  });
+
+  const fecha = new Date().toISOString().slice(0, 10);
+  descargarCSV(`resultados-por-categoria-${fecha}.csv`, filas);
+});
+
+// Export GENERAL por orden de llegada (hora de llegada real, todos juntos)
+document.getElementById("btn-export-gral").addEventListener("click", () => {
+  const { lista } = llegadasFiltradas();
+  if (lista.length === 0) {
+    alert("No hay resultados para exportar con los filtros seleccionados.");
+    return;
+  }
+  const orden = [...lista].sort((a, b) => new Date(a.horaLlegada) - new Date(b.horaLlegada));
+  const filas = [["Orden de llegada", "Dorsal", "Nombre", "Equipo", "Categoría", "Competencia", "Hora llegada", "Tiempo"]];
+  orden.forEach((l, i) => {
+    filas.push([
+      i + 1,
+      l.dorsal,
+      l.nombre,
+      l.equipo || "",
+      l.categoria,
+      nombreComp(l.comp),
+      new Date(l.horaLlegada).toLocaleTimeString("es-CR"),
+      calcularTiempo(l),
+    ]);
+  });
+
+  const fecha = new Date().toISOString().slice(0, 10);
+  descargarCSV(`resultados-por-llegada-${fecha}.csv`, filas);
+});
 
 /* ---------------- Exportar / Importar ---------------- */
 document.getElementById("btn-exportar").addEventListener("click", () => {

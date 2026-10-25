@@ -11,9 +11,13 @@ Funciona **offline** en un solo dispositivo usando `localStorage`, con respaldo 
    - Se **marcan** las categorías que arrancan en la tanda y se aprieta el botón grande **▶️ DAR SALIDA** en el instante del banderazo (hora exacta del clic, sin desfase).
    - Si **no** hay ninguna categoría marcada, el botón da **salida general** a toda la competencia.
    - El tiempo de cada ciclista usa la hora de salida de **su categoría** si la tiene; si no, usa la salida general de la competencia.
+   - Botón **⏹️ Parar / ▶️ Reanudar** por competencia: congela el cronómetro visual (no afecta los tiempos reales de los ciclistas, que siempre se calculan por hora de salida vs. llegada).
    - Botón **🗑️ Borrar salidas** (no borra base de datos ni llegadas).
 3. **⏱️ Registro** — Pantalla limpia: reloj en vivo + campo de **dorsal**. Se digita el dorsal y Enter: autocompleta nombre, categoría, equipo, hora de llegada y calcula el **tiempo**. Botón **🗑️ Borrar llegadas** (no borra base de datos ni salidas).
 4. **🏆 Resultados** — Tiempos ordenados de menor a mayor, agrupados por **competencia y categoría**, con podio (🥇🥈🥉). Filtros por competencia y categoría. Botón de imprimir/PDF.
+   - **📊 Exportar por categoría**: CSV agrupado por competencia+categoría, con la posición dentro de cada categoría.
+   - **📊 Exportar por llegada**: CSV general con todos ordenados por hora de llegada real.
+   - Ambos exports **respetan los filtros** de competencia y categoría, y se descargan en **CSV delimitado por `;`** con BOM UTF-8 (se abre directo en Excel, con acentos correctos).
 
 ## Formato del CSV
 
