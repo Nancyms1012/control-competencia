@@ -52,9 +52,11 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     document.getElementById(tab.dataset.tab).classList.add("active");
     if (tab.dataset.tab === "resultados") renderResultados();
-    if (tab.dataset.tab === "registro") {
+    if (tab.dataset.tab === "salidas") {
       renderClocks();
       renderSalidasCat();
+    }
+    if (tab.dataset.tab === "registro") {
       document.getElementById("input-dorsal").focus();
     }
   });
@@ -188,8 +190,11 @@ function tiempoDelDiaSeg(dateObj) {
 }
 
 function tickClock() {
+  const ahoraStr = horaActualStr();
   const el = document.getElementById("live-clock");
-  if (el) el.textContent = horaActualStr();
+  if (el) el.textContent = ahoraStr;
+  const el2 = document.getElementById("live-clock-salidas");
+  if (el2) el2.textContent = ahoraStr;
   // actualizar cronómetros de cada competencia
   document.querySelectorAll(".comp-clock").forEach((box) => {
     const n = box.dataset.comp;
@@ -223,38 +228,24 @@ function renderClocks() {
     div.className = "comp-clock";
     div.dataset.comp = n;
     const nombre = c.nombre || `Competencia ${n}`;
-    const salida = c.salida ? `salió ${c.salida}` : "sin hora de salida";
-    const txtBtn = c.salida ? "↻ Reiniciar salida" : "▶️ Dar salida ahora";
+    const salida = c.salida ? `salió ${c.salida}` : "sin salida general";
     div.innerHTML = `
       <span>${nombre} <small>(${salida})</small></span>
-      <b>--:--:--</b>
-      <button class="btn-salida" data-comp="${n}">${txtBtn}</button>`;
+      <b>--:--:--</b>`;
     cont.appendChild(div);
   }
-  cont.querySelectorAll(".btn-salida").forEach((btn) => {
-    btn.addEventListener("click", () => darSalida(Number(btn.dataset.comp)));
-  });
   tickClock();
 }
 
-// Fija la hora actual como hora de salida de la competencia (inicia el crono)
-function darSalida(n) {
+// Da salida general a toda la competencia (hora actual)
+function darSalidaGeneral(n) {
   const c = estado.comps[n];
-  const nombre = c.nombre || `Competencia ${n}`;
-  if (c.salida && !confirm(`La ${nombre} ya tiene hora de salida (${c.salida}). ¿Querés reiniciarla a la hora actual? Los tiempos ya registrados se recalcularán.`)) {
-    return;
-  }
   const ahora = new Date();
   c.salida = `${dosDig(ahora.getHours())}:${dosDig(ahora.getMinutes())}:${dosDig(ahora.getSeconds())}`;
-  guardar();
   // reflejar en el campo de Configuración
   const campo = document.getElementById(`comp${n}-salida`);
   if (campo) campo.value = c.salida;
-  renderClocks();
-  renderSalidasCat();
-  renderTablaRegistro();
-  const fb = document.getElementById("dorsal-feedback");
-  if (fb) fb.innerHTML = `<span class="ok">▶️ Salida de <b>${nombre}</b> dada a las <b>${c.salida}</b>. ¡Crono en marcha!</span>`;
+  return c.salida;
 }
 
 /* ---------------- Salidas por categoría ---------------- */
@@ -295,14 +286,15 @@ function renderSalidasCat() {
 
     panel.innerHTML = `
       <div class="salidas-head">
-        <h4>Salidas por categoría — ${nombre}</h4>
+        <h4>${nombre}</h4>
         <div class="salidas-acciones">
           <button class="btn-mini sel-all" data-comp="${n}">Marcar todas</button>
           <button class="btn-mini sel-none" data-comp="${n}">Desmarcar</button>
-          <button class="btn-mini primary dar-sal-cat" data-comp="${n}">▶️ Dar salida a las marcadas</button>
         </div>
       </div>
-      <div class="sal-lista">${filas}</div>`;
+      <div class="sal-lista">${filas}</div>
+      <button class="btn-salida-grande dar-sal" data-comp="${n}">▶️ DAR SALIDA</button>
+      <small class="muted sal-ayuda" data-comp="${n}"></small>`;
     cont.appendChild(panel);
   }
 
@@ -311,42 +303,62 @@ function renderSalidasCat() {
     b.addEventListener("click", () => marcarCats(Number(b.dataset.comp), true)));
   cont.querySelectorAll(".sel-none").forEach((b) =>
     b.addEventListener("click", () => marcarCats(Number(b.dataset.comp), false)));
-  cont.querySelectorAll(".dar-sal-cat").forEach((b) =>
-    b.addEventListener("click", () => darSalidaCategorias(Number(b.dataset.comp))));
+  cont.querySelectorAll(".dar-sal").forEach((b) =>
+    b.addEventListener("click", () => darSalida(Number(b.dataset.comp))));
+  cont.querySelectorAll(".chk-cat").forEach((chk) =>
+    chk.addEventListener("change", () => actualizarAyudaSalida(Number(chk.dataset.comp))));
   cont.querySelectorAll(".sal-reset").forEach((b) =>
     b.addEventListener("click", (e) => {
       e.preventDefault();
       quitarSalidaCategoria(Number(b.dataset.comp), decodeURIComponent(b.dataset.cat));
     }));
+
+  [1, 2].forEach((n) => actualizarAyudaSalida(n));
 }
 
 function marcarCats(n, valor) {
   document.querySelectorAll(`.chk-cat[data-comp="${n}"]`).forEach((chk) => (chk.checked = valor));
+  actualizarAyudaSalida(n);
 }
 
-function darSalidaCategorias(n) {
+// Muestra qué hará el botón grande según lo marcado
+function actualizarAyudaSalida(n) {
+  const ayuda = document.querySelector(`.sal-ayuda[data-comp="${n}"]`);
+  if (!ayuda) return;
+  const marcadas = document.querySelectorAll(`.chk-cat[data-comp="${n}"]:checked`).length;
+  ayuda.textContent = marcadas > 0
+    ? `El botón dará salida a ${marcadas} categoría(s) marcada(s).`
+    : "Sin categorías marcadas: el botón dará salida general a toda la competencia.";
+}
+
+// Botón grande: da salida a las categorías marcadas, o general si no hay ninguna marcada
+function darSalida(n) {
+  const c = estado.comps[n];
+  const nombre = c.nombre || `Competencia ${n}`;
   const marcadas = [...document.querySelectorAll(`.chk-cat[data-comp="${n}"]:checked`)]
     .map((chk) => decodeURIComponent(chk.dataset.cat));
-  if (marcadas.length === 0) {
-    alert("Marcá al menos una categoría para darle salida.");
-    return;
-  }
-  // avisar si alguna ya tenía salida
-  const c = estado.comps[n];
-  const yaTenian = marcadas.filter((cat) => c.salidasCat[cat]);
-  if (yaTenian.length > 0 &&
-      !confirm(`Las categorías ya con salida se recalcularán: ${yaTenian.join(", ")}. ¿Continuar?`)) {
-    return;
-  }
+
   const ahora = new Date();
   const hora = `${dosDig(ahora.getHours())}:${dosDig(ahora.getMinutes())}:${dosDig(ahora.getSeconds())}`;
-  marcadas.forEach((cat) => (c.salidasCat[cat] = hora));
+
+  let mensaje;
+  if (marcadas.length > 0) {
+    // Salida por categorías marcadas (hora exacta del clic, sin desfase)
+    marcadas.forEach((cat) => (c.salidasCat[cat] = hora));
+    mensaje = `▶️ Salida dada a las <b>${hora}</b> para ${marcadas.length} categoría(s): ${marcadas.join(", ")}.`;
+  } else {
+    // Salida general a toda la competencia
+    darSalidaGeneral(n);
+    mensaje = `▶️ Salida GENERAL de <b>${nombre}</b> dada a las <b>${hora}</b>.`;
+  }
   guardar();
   renderSalidasCat();
   renderTablaRegistro();
-  const nombre = c.nombre || `Competencia ${n}`;
-  const fb = document.getElementById("dorsal-feedback");
-  if (fb) fb.innerHTML = `<span class="ok">▶️ Salida dada a las <b>${hora}</b> para ${marcadas.length} categoría(s) de <b>${nombre}</b>: ${marcadas.join(", ")}.</span>`;
+  const hint = document.getElementById("salidas-hint");
+  if (hint) {
+    hint.innerHTML = mensaje;
+    setTimeout(() => (hint.innerHTML = ""), 6000);
+  }
 }
 
 function quitarSalidaCategoria(n, cat) {
@@ -599,6 +611,40 @@ document.getElementById("file-importar").addEventListener("change", (e) => {
   };
   reader.readAsText(file, "UTF-8");
   e.target.value = "";
+});
+
+/* ---------------- Borrar salidas (tab Salidas) ---------------- */
+document.getElementById("btn-borrar-salidas").addEventListener("click", () => {
+  if (!confirm("¿Borrar TODAS las horas de salida (general y por categoría) de ambas competencias?\n\nEsto NO borra la base de datos ni las llegadas registradas.")) return;
+  for (const n of [1, 2]) {
+    estado.comps[n].salida = "";
+    estado.comps[n].salidasCat = {};
+    const campo = document.getElementById(`comp${n}-salida`);
+    if (campo) campo.value = "";
+  }
+  guardar();
+  renderClocks();
+  renderSalidasCat();
+  renderTablaRegistro();
+  const hint = document.getElementById("salidas-hint");
+  if (hint) {
+    hint.innerHTML = "🗑️ Salidas borradas.";
+    setTimeout(() => (hint.innerHTML = ""), 4000);
+  }
+});
+
+/* ---------------- Borrar llegadas (tab Registro) ---------------- */
+document.getElementById("btn-borrar-llegadas").addEventListener("click", () => {
+  if (estado.llegadas.length === 0) {
+    alert("No hay llegadas registradas para borrar.");
+    return;
+  }
+  if (!confirm(`¿Borrar las ${estado.llegadas.length} llegada(s) registrada(s)?\n\nEsto NO borra la base de datos ni las horas de salida.`)) return;
+  estado.llegadas = [];
+  guardar();
+  renderTablaRegistro();
+  const fb = document.getElementById("dorsal-feedback");
+  if (fb) fb.innerHTML = `<span class="ok">🗑️ Llegadas borradas.</span>`;
 });
 
 /* ---------------- Borrar todo ---------------- */

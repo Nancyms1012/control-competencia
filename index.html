@@ -11,6 +11,7 @@
     <h1>🚴 Control de Competencia</h1>
     <nav class="tabs">
       <button class="tab active" data-tab="config">⚙️ Configuración</button>
+      <button class="tab" data-tab="salidas">🚦 Salidas</button>
       <button class="tab" data-tab="registro">⏱️ Registro</button>
       <button class="tab" data-tab="resultados">🏆 Resultados</button>
     </nav>
@@ -78,17 +79,34 @@
       </div>
     </section>
 
+    <!-- ============ SALIDAS ============ -->
+    <section id="salidas" class="page">
+      <div class="card">
+        <h2>Salidas</h2>
+        <p class="muted">Marcá las categorías que arrancan en esta tanda y dales salida con el botón grande en el instante del banderazo. Si no marcás ninguna, el botón da salida a toda la competencia.</p>
+
+        <div class="clock-row">
+          <div class="live-clock" id="live-clock-salidas">--:--:--</div>
+          <div class="comp-clocks" id="comp-clocks"></div>
+        </div>
+
+        <!-- Panel de marcar categorías + botón grande por competencia -->
+        <div class="salidas-cat" id="salidas-cat"></div>
+
+        <div class="actions">
+          <button class="btn danger" id="btn-borrar-salidas">🗑️ Borrar salidas</button>
+        </div>
+        <div class="save-hint" id="salidas-hint"></div>
+      </div>
+    </section>
+
     <!-- ============ REGISTRO ============ -->
     <section id="registro" class="page">
       <div class="card">
         <h2>Registro de llegadas</h2>
         <div class="clock-row">
           <div class="live-clock" id="live-clock">--:--:--</div>
-          <div class="comp-clocks" id="comp-clocks"></div>
         </div>
-
-        <!-- Salidas por categoría -->
-        <div class="salidas-cat" id="salidas-cat"></div>
 
         <div class="dorsal-box">
           <label for="input-dorsal">Dorsal</label>
@@ -97,7 +115,10 @@
         </div>
         <div class="dorsal-feedback" id="dorsal-feedback"></div>
 
-        <h3>Últimas llegadas</h3>
+        <div class="registro-head">
+          <h3>Últimas llegadas</h3>
+          <button class="btn danger" id="btn-borrar-llegadas">🗑️ Borrar llegadas</button>
+        </div>
         <div class="table-wrap">
           <table id="tabla-registro">
             <thead>

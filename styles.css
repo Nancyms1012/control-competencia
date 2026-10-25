@@ -221,6 +221,33 @@ input[type="file"] { padding: 8px; }
   padding: 0 2px;
 }
 
+.btn-salida-grande {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  background: var(--green);
+  color: #fff;
+  border: none;
+  padding: 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.btn-salida-grande:hover { background: #15803d; }
+.btn-salida-grande:active { transform: scale(0.99); }
+.sal-ayuda { display: block; margin-top: 8px; text-align: center; }
+
+.registro-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.registro-head h3 { margin: 0; }
+
 .dorsal-box {
   display: flex;
   gap: 10px;
