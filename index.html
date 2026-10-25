@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de Competencia</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>🚴 Control de Competencia</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="config">⚙️ Configuración</button>
+      <button class="tab" data-tab="registro">⏱️ Registro</button>
+      <button class="tab" data-tab="resultados">🏆 Resultados</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============ CONFIGURACIÓN ============ -->
+    <section id="config" class="page active">
+      <div class="card">
+        <h2>Datos de las competencias</h2>
+        <p class="muted">Configurá las dos competencias. La hora de salida se usa para calcular el tiempo de cada ciclista.</p>
+
+        <div class="comp-grid">
+          <!-- Competencia 1 -->
+          <div class="comp-box" data-comp="1">
+            <h3>Competencia 1</h3>
+            <label>Nombre del evento
+              <input type="text" id="comp1-nombre" placeholder="Ej: XCO Elite" />
+            </label>
+            <label>Distancia
+              <input type="text" id="comp1-distancia" placeholder="Ej: 30 km" />
+            </label>
+            <label>Hora de salida
+              <input type="time" id="comp1-salida" step="1" />
+            </label>
+            <div class="csv-zone">
+              <label>Base de datos (CSV con <code>;</code>)
+                <input type="file" id="comp1-csv" accept=".csv,text/csv" />
+              </label>
+              <small class="muted">Columnas: categoría ; dorsal ; nombre ; equipo</small>
+              <div class="count" id="comp1-count">Sin ciclistas cargados</div>
+            </div>
+          </div>
+
+          <!-- Competencia 2 -->
+          <div class="comp-box" data-comp="2">
+            <h3>Competencia 2</h3>
+            <label>Nombre del evento
+              <input type="text" id="comp2-nombre" placeholder="Ej: XCO Juvenil" />
+            </label>
+            <label>Distancia
+              <input type="text" id="comp2-distancia" placeholder="Ej: 20 km" />
+            </label>
+            <label>Hora de salida
+              <input type="time" id="comp2-salida" step="1" />
+            </label>
+            <div class="csv-zone">
+              <label>Base de datos (CSV con <code>;</code>)
+                <input type="file" id="comp2-csv" accept=".csv,text/csv" />
+              </label>
+              <small class="muted">Columnas: categoría ; dorsal ; nombre ; equipo</small>
+              <div class="count" id="comp2-count">Sin ciclistas cargados</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="btn-guardar-config">💾 Guardar configuración</button>
+          <button class="btn" id="btn-exportar">📤 Exportar respaldo</button>
+          <button class="btn" id="btn-importar-lbl" onclick="document.getElementById('file-importar').click()">📥 Importar respaldo</button>
+          <input type="file" id="file-importar" accept=".json,application/json" hidden />
+          <button class="btn danger" id="btn-reset">🗑️ Borrar todo</button>
+        </div>
+        <div class="save-hint" id="config-hint"></div>
+      </div>
+    </section>
+
+    <!-- ============ REGISTRO ============ -->
+    <section id="registro" class="page">
+      <div class="card">
+        <h2>Registro de llegadas</h2>
+        <div class="clock-row">
+          <div class="live-clock" id="live-clock">--:--:--</div>
+          <div class="comp-clocks" id="comp-clocks"></div>
+        </div>
+
+        <div class="dorsal-box">
+          <label for="input-dorsal">Dorsal</label>
+          <input type="number" id="input-dorsal" inputmode="numeric" placeholder="Digitá el dorsal y Enter" autocomplete="off" />
+          <button class="btn primary" id="btn-registrar">Registrar llegada</button>
+        </div>
+        <div class="dorsal-feedback" id="dorsal-feedback"></div>
+
+        <h3>Últimas llegadas</h3>
+        <div class="table-wrap">
+          <table id="tabla-registro">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Dorsal</th>
+                <th>Nombre</th>
+                <th>Categoría</th>
+                <th>Equipo</th>
+                <th>Competencia</th>
+                <th>Hora llegada</th>
+                <th>Tiempo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTADOS ============ -->
+    <section id="resultados" class="page">
+      <div class="card">
+        <h2>Resultados</h2>
+        <div class="filtros">
+          <label>Competencia
+            <select id="filtro-comp">
+              <option value="all">Todas</option>
+              <option value="1">Competencia 1</option>
+              <option value="2">Competencia 2</option>
+            </select>
+          </label>
+          <label>Categoría
+            <select id="filtro-cat">
+              <option value="all">Todas</option>
+            </select>
+          </label>
+          <button class="btn" id="btn-imprimir">🖨️ Imprimir / PDF</button>
+        </div>
+        <div id="resultados-cont"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

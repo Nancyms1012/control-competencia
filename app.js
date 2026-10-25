@@ -1,0 +1,479 @@
+/* ============================================================
+   Control de Competencia — sitio estático, solo localStorage
+   ============================================================ */
+
+const STORAGE_KEY = "controlCompetencia_v1";
+
+// Estado por defecto
+function estadoInicial() {
+  return {
+    comps: {
+      1: { nombre: "", distancia: "", salida: "", ciclistas: [] },
+      2: { nombre: "", distancia: "", salida: "", ciclistas: [] },
+    },
+    // llegadas: { dorsal, comp, horaLlegada(ISO), nombre, categoria, equipo }
+    llegadas: [],
+  };
+}
+
+let estado = cargar();
+
+function cargar() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return estadoInicial();
+    const data = JSON.parse(raw);
+    const base = estadoInicial();
+    // merge defensivo
+    base.comps[1] = { ...base.comps[1], ...(data.comps?.[1] || {}) };
+    base.comps[2] = { ...base.comps[2], ...(data.comps?.[2] || {}) };
+    base.comps[1].ciclistas = data.comps?.[1]?.ciclistas || [];
+    base.comps[2].ciclistas = data.comps?.[2]?.ciclistas || [];
+    base.llegadas = Array.isArray(data.llegadas) ? data.llegadas : [];
+    return base;
+  } catch (e) {
+    console.error("Error al cargar estado", e);
+    return estadoInicial();
+  }
+}
+
+function guardar() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+}
+
+/* ---------------- Navegación por pestañas ---------------- */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(tab.dataset.tab).classList.add("active");
+    if (tab.dataset.tab === "resultados") renderResultados();
+    if (tab.dataset.tab === "registro") {
+      renderClocks();
+      document.getElementById("input-dorsal").focus();
+    }
+  });
+});
+
+/* ---------------- CSV ---------------- */
+// Parser CSV delimitado por ; columnas: categoria ; dorsal ; nombre ; equipo
+function parseCSV(texto) {
+  const lineas = texto.split(/\r?\n/).filter((l) => l.trim() !== "");
+  if (lineas.length === 0) return { ciclistas: [], error: "El archivo está vacío." };
+
+  // Detectar si la primera línea es encabezado
+  const primera = lineas[0].toLowerCase();
+  let inicio = 0;
+  if (/categor|dorsal|nombre|equipo/.test(primera)) inicio = 1;
+
+  const ciclistas = [];
+  for (let i = inicio; i < lineas.length; i++) {
+    const partes = lineas[i].split(";").map((p) => p.trim());
+    if (partes.length < 3) continue; // fila inválida
+    const [categoria, dorsal, nombre, equipo = ""] = partes;
+    if (!dorsal) continue;
+    ciclistas.push({
+      categoria: categoria || "Sin categoría",
+      dorsal: String(dorsal).trim(),
+      nombre: nombre || "(sin nombre)",
+      equipo: equipo || "",
+    });
+  }
+  if (ciclistas.length === 0)
+    return { ciclistas: [], error: "No se encontraron filas válidas. Verificá que el separador sea ; y el orden: categoría; dorsal; nombre; equipo" };
+  return { ciclistas, error: null };
+}
+
+function manejarCSV(compNum, file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const { ciclistas, error } = parseCSV(e.target.result);
+    const countEl = document.getElementById(`comp${compNum}-count`);
+    if (error) {
+      countEl.textContent = "⚠️ " + error;
+      countEl.classList.remove("ok");
+      return;
+    }
+    estado.comps[compNum].ciclistas = ciclistas;
+    guardar();
+    actualizarCount(compNum);
+    rellenarFiltroCategorias();
+  };
+  reader.readAsText(file, "UTF-8");
+}
+
+function actualizarCount(compNum) {
+  const countEl = document.getElementById(`comp${compNum}-count`);
+  const n = estado.comps[compNum].ciclistas.length;
+  if (n > 0) {
+    countEl.textContent = `✅ ${n} ciclistas cargados`;
+    countEl.classList.add("ok");
+  } else {
+    countEl.textContent = "Sin ciclistas cargados";
+    countEl.classList.remove("ok");
+  }
+}
+
+document.getElementById("comp1-csv").addEventListener("change", (e) => {
+  if (e.target.files[0]) manejarCSV(1, e.target.files[0]);
+});
+document.getElementById("comp2-csv").addEventListener("change", (e) => {
+  if (e.target.files[0]) manejarCSV(2, e.target.files[0]);
+});
+
+/* ---------------- Guardar configuración ---------------- */
+function leerConfigEnEstado() {
+  for (const n of [1, 2]) {
+    estado.comps[n].nombre = document.getElementById(`comp${n}-nombre`).value.trim();
+    estado.comps[n].distancia = document.getElementById(`comp${n}-distancia`).value.trim();
+    estado.comps[n].salida = document.getElementById(`comp${n}-salida`).value;
+  }
+}
+
+document.getElementById("btn-guardar-config").addEventListener("click", () => {
+  leerConfigEnEstado();
+  guardar();
+  const hint = document.getElementById("config-hint");
+  hint.textContent = "✅ Configuración guardada.";
+  setTimeout(() => (hint.textContent = ""), 2500);
+  renderClocks();
+  rellenarFiltroCategorias();
+});
+
+/* ---------------- Pintar config al abrir ---------------- */
+function pintarConfig() {
+  for (const n of [1, 2]) {
+    document.getElementById(`comp${n}-nombre`).value = estado.comps[n].nombre || "";
+    document.getElementById(`comp${n}-distancia`).value = estado.comps[n].distancia || "";
+    document.getElementById(`comp${n}-salida`).value = estado.comps[n].salida || "";
+    actualizarCount(n);
+  }
+}
+
+/* ---------------- Reloj en vivo ---------------- */
+function dosDig(n) { return String(n).padStart(2, "0"); }
+
+function horaActualStr() {
+  const d = new Date();
+  return `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}:${dosDig(d.getSeconds())}`;
+}
+
+// Convierte "HH:MM" o "HH:MM:SS" a segundos del día
+function horaASegundos(hhmmss) {
+  if (!hhmmss) return null;
+  const partes = hhmmss.split(":").map(Number);
+  const [h, m, s = 0] = partes;
+  if ([h, m].some((x) => isNaN(x))) return null;
+  return h * 3600 + m * 60 + s;
+}
+
+// Formatea segundos a HH:MM:SS
+function segundosAStr(seg) {
+  if (seg == null || seg < 0) return "—";
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = Math.floor(seg % 60);
+  return `${dosDig(h)}:${dosDig(m)}:${dosDig(s)}`;
+}
+
+function tiempoDelDiaSeg(dateObj) {
+  return dateObj.getHours() * 3600 + dateObj.getMinutes() * 60 + dateObj.getSeconds();
+}
+
+function tickClock() {
+  const el = document.getElementById("live-clock");
+  if (el) el.textContent = horaActualStr();
+  // actualizar cronómetros de cada competencia
+  document.querySelectorAll(".comp-clock").forEach((box) => {
+    const n = box.dataset.comp;
+    const salida = estado.comps[n].salida;
+    const bEl = box.querySelector("b");
+    const salSeg = horaASegundos(salida);
+    if (salSeg == null) {
+      bEl.textContent = "--:--:--";
+      box.classList.add("waiting");
+      return;
+    }
+    const ahora = tiempoDelDiaSeg(new Date());
+    const transcurrido = ahora - salSeg;
+    if (transcurrido < 0) {
+      bEl.textContent = "Falta " + segundosAStr(-transcurrido);
+      box.classList.add("waiting");
+    } else {
+      bEl.textContent = segundosAStr(transcurrido);
+      box.classList.remove("waiting");
+    }
+  });
+}
+
+function renderClocks() {
+  const cont = document.getElementById("comp-clocks");
+  cont.innerHTML = "";
+  for (const n of [1, 2]) {
+    const c = estado.comps[n];
+    if (!c.nombre && !c.salida && c.ciclistas.length === 0) continue;
+    const div = document.createElement("div");
+    div.className = "comp-clock";
+    div.dataset.comp = n;
+    const nombre = c.nombre || `Competencia ${n}`;
+    const salida = c.salida ? `salió ${c.salida}` : "sin hora de salida";
+    div.innerHTML = `<span>${nombre} <small>(${salida})</small></span><b>--:--:--</b>`;
+    cont.appendChild(div);
+  }
+  tickClock();
+}
+
+/* ---------------- Registro de llegada ---------------- */
+// Busca un ciclista por dorsal en ambas competencias
+function buscarPorDorsal(dorsal) {
+  const d = String(dorsal).trim();
+  for (const n of [1, 2]) {
+    const c = estado.comps[n].ciclistas.find((x) => x.dorsal === d);
+    if (c) return { ...c, comp: n };
+  }
+  return null;
+}
+
+function registrarLlegada() {
+  const input = document.getElementById("input-dorsal");
+  const fb = document.getElementById("dorsal-feedback");
+  const dorsal = input.value.trim();
+  if (!dorsal) return;
+
+  const ciclista = buscarPorDorsal(dorsal);
+  if (!ciclista) {
+    fb.innerHTML = `<span class="err">⚠️ Dorsal <b>${dorsal}</b> no encontrado en ninguna base de datos.</span>`;
+    input.select();
+    return;
+  }
+
+  // ¿ya registrado?
+  const yaExiste = estado.llegadas.find((l) => l.dorsal === ciclista.dorsal && l.comp === ciclista.comp);
+  if (yaExiste) {
+    fb.innerHTML = `<span class="err">⚠️ El dorsal <b>${dorsal}</b> (${ciclista.nombre}) ya fue registrado a las ${new Date(yaExiste.horaLlegada).toLocaleTimeString("es-CR")}.</span>`;
+    input.select();
+    return;
+  }
+
+  const ahora = new Date();
+  const llegada = {
+    dorsal: ciclista.dorsal,
+    comp: ciclista.comp,
+    nombre: ciclista.nombre,
+    categoria: ciclista.categoria,
+    equipo: ciclista.equipo,
+    horaLlegada: ahora.toISOString(),
+  };
+  estado.llegadas.push(llegada);
+  guardar();
+
+  const tiempo = calcularTiempo(llegada);
+  fb.innerHTML = `<span class="ok">✅ <b>${ciclista.nombre}</b> (dorsal ${dorsal}, ${ciclista.categoria}) — tiempo <b>${tiempo}</b></span>`;
+  input.value = "";
+  input.focus();
+  renderTablaRegistro();
+}
+
+// Calcula el tiempo = horaLlegada - horaSalida de su competencia
+function calcularTiempo(llegada) {
+  const salida = estado.comps[llegada.comp].salida;
+  const salSeg = horaASegundos(salida);
+  if (salSeg == null) return "sin hora salida";
+  const d = new Date(llegada.horaLlegada);
+  const llegadaSeg = tiempoDelDiaSeg(d);
+  const diff = llegadaSeg - salSeg;
+  return segundosAStr(diff);
+}
+
+function tiempoSegundos(llegada) {
+  const salSeg = horaASegundos(estado.comps[llegada.comp].salida);
+  if (salSeg == null) return Infinity;
+  const llegadaSeg = tiempoDelDiaSeg(new Date(llegada.horaLlegada));
+  return llegadaSeg - salSeg;
+}
+
+document.getElementById("btn-registrar").addEventListener("click", registrarLlegada);
+document.getElementById("input-dorsal").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") registrarLlegada();
+});
+
+function renderTablaRegistro() {
+  const tbody = document.querySelector("#tabla-registro tbody");
+  tbody.innerHTML = "";
+  // más recientes arriba
+  const lista = [...estado.llegadas].reverse();
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">Aún no hay llegadas registradas.</td></tr>`;
+    return;
+  }
+  lista.forEach((l, idx) => {
+    const tr = document.createElement("tr");
+    const nombreComp = estado.comps[l.comp].nombre || `Comp ${l.comp}`;
+    tr.innerHTML = `
+      <td>${lista.length - idx}</td>
+      <td><b>${l.dorsal}</b></td>
+      <td>${l.nombre}</td>
+      <td>${l.categoria}</td>
+      <td>${l.equipo || "—"}</td>
+      <td>${nombreComp}</td>
+      <td>${new Date(l.horaLlegada).toLocaleTimeString("es-CR")}</td>
+      <td class="time">${calcularTiempo(l)}</td>
+      <td><button class="link-del" data-dorsal="${l.dorsal}" data-comp="${l.comp}">✖ borrar</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll(".link-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const d = btn.dataset.dorsal, c = Number(btn.dataset.comp);
+      if (!confirm(`¿Borrar la llegada del dorsal ${d}?`)) return;
+      estado.llegadas = estado.llegadas.filter((l) => !(l.dorsal === d && l.comp === c));
+      guardar();
+      renderTablaRegistro();
+    });
+  });
+}
+
+/* ---------------- Resultados ---------------- */
+function rellenarFiltroCategorias() {
+  const sel = document.getElementById("filtro-cat");
+  const prev = sel.value;
+  const cats = new Set();
+  for (const n of [1, 2]) estado.comps[n].ciclistas.forEach((c) => cats.add(c.categoria));
+  estado.llegadas.forEach((l) => cats.add(l.categoria));
+  sel.innerHTML = `<option value="all">Todas</option>`;
+  [...cats].sort((a, b) => a.localeCompare(b, "es")).forEach((cat) => {
+    const o = document.createElement("option");
+    o.value = cat; o.textContent = cat;
+    sel.appendChild(o);
+  });
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+}
+
+function renderResultados() {
+  rellenarFiltroCategorias();
+  const compF = document.getElementById("filtro-comp").value;
+  const catF = document.getElementById("filtro-cat").value;
+  const cont = document.getElementById("resultados-cont");
+
+  let lista = [...estado.llegadas];
+  if (compF !== "all") lista = lista.filter((l) => String(l.comp) === compF);
+  if (catF !== "all") lista = lista.filter((l) => l.categoria === catF);
+
+  if (lista.length === 0) {
+    cont.innerHTML = `<div class="empty">No hay resultados con los filtros seleccionados.</div>`;
+    return;
+  }
+
+  // Agrupar por competencia y categoría
+  const grupos = {};
+  lista.forEach((l) => {
+    const nombreComp = estado.comps[l.comp].nombre || `Competencia ${l.comp}`;
+    const key = `${l.comp}||${nombreComp}||${l.categoria}`;
+    (grupos[key] = grupos[key] || []).push(l);
+  });
+
+  const keysOrden = Object.keys(grupos).sort((a, b) => {
+    const [ca, , cata] = a.split("||");
+    const [cb, , catb] = b.split("||");
+    if (ca !== cb) return ca.localeCompare(cb);
+    return cata.localeCompare(catb, "es");
+  });
+
+  cont.innerHTML = "";
+  keysOrden.forEach((key) => {
+    const [, nombreComp, categoria] = key.split("||");
+    const filas = grupos[key].sort((a, b) => tiempoSegundos(a) - tiempoSegundos(b));
+
+    const group = document.createElement("div");
+    group.className = "result-group";
+    group.innerHTML = `<h3>${nombreComp} — ${categoria}</h3>`;
+
+    const wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <thead><tr>
+        <th>Pos</th><th>Dorsal</th><th>Nombre</th><th>Equipo</th><th>Hora llegada</th><th>Tiempo</th>
+      </tr></thead><tbody></tbody>`;
+    const tb = table.querySelector("tbody");
+    filas.forEach((l, i) => {
+      const tr = document.createElement("tr");
+      if (i < 3) tr.className = `podium-${i + 1}`;
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td><b>${l.dorsal}</b></td>
+        <td>${l.nombre}</td>
+        <td>${l.equipo || "—"}</td>
+        <td>${new Date(l.horaLlegada).toLocaleTimeString("es-CR")}</td>
+        <td class="time">${calcularTiempo(l)}</td>`;
+      tb.appendChild(tr);
+    });
+    wrap.appendChild(table);
+    group.appendChild(wrap);
+    cont.appendChild(group);
+  });
+}
+
+document.getElementById("filtro-comp").addEventListener("change", renderResultados);
+document.getElementById("filtro-cat").addEventListener("change", renderResultados);
+document.getElementById("btn-imprimir").addEventListener("click", () => window.print());
+
+/* ---------------- Exportar / Importar ---------------- */
+document.getElementById("btn-exportar").addEventListener("click", () => {
+  leerConfigEnEstado();
+  guardar();
+  const blob = new Blob([JSON.stringify(estado, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const fecha = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `control-competencia-${fecha}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById("file-importar").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.comps || !Array.isArray(data.llegadas)) {
+        alert("El archivo no tiene el formato esperado.");
+        return;
+      }
+      if (!confirm("Esto REEMPLAZARÁ todos los datos de este dispositivo. ¿Continuar?")) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      estado = cargar();
+      pintarConfig();
+      renderClocks();
+      renderTablaRegistro();
+      rellenarFiltroCategorias();
+      alert("✅ Respaldo importado correctamente.");
+    } catch (err) {
+      alert("Error al leer el archivo: " + err.message);
+    }
+  };
+  reader.readAsText(file, "UTF-8");
+  e.target.value = "";
+});
+
+/* ---------------- Borrar todo ---------------- */
+document.getElementById("btn-reset").addEventListener("click", () => {
+  if (!confirm("¿Seguro que querés borrar TODA la configuración y las llegadas de este dispositivo?")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  estado = estadoInicial();
+  pintarConfig();
+  renderClocks();
+  renderTablaRegistro();
+  rellenarFiltroCategorias();
+});
+
+/* ---------------- Inicio ---------------- */
+pintarConfig();
+renderTablaRegistro();
+renderClocks();
+rellenarFiltroCategorias();
+setInterval(tickClock, 1000);
