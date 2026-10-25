@@ -210,6 +210,19 @@ input[type="file"] { padding: 8px; }
 }
 .sal-item input[type="checkbox"] { width: auto; margin: 0; }
 .sal-nombre { flex: 1; }
+.sal-item.ya-salio { opacity: 0.55; background: #0d1626; }
+.sal-item.ya-salio .sal-nombre { text-decoration: line-through; }
+
+.sal-contador {
+  margin: 10px 0;
+  padding: 8px 12px;
+  background: #111b2e;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fbbf24;
+}
+.sal-contador.completo { color: #86efac; }
 .sal-hora { color: #86efac; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .sal-pend { color: var(--muted); font-size: 0.8rem; }
 .sal-reset {

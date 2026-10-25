@@ -270,19 +270,32 @@ function renderSalidasCat() {
     const panel = document.createElement("div");
     panel.className = "salidas-panel";
 
-    const filas = cats.map((cat) => {
+    // Ordenar: primero las pendientes (sin salida), luego las ya largadas; alfabético dentro de cada grupo
+    const ordenadas = [...cats].sort((a, b) => {
+      const sa = c.salidasCat[a] ? 1 : 0;
+      const sb = c.salidasCat[b] ? 1 : 0;
+      if (sa !== sb) return sa - sb; // pendientes (0) antes que largadas (1)
+      return a.localeCompare(b, "es");
+    });
+
+    const salidas = cats.filter((cat) => c.salidasCat[cat]).length;
+    const total = cats.length;
+
+    const filas = ordenadas.map((cat) => {
       const hora = c.salidasCat[cat];
       const estadoTxt = hora
         ? `<span class="sal-hora">salió ${hora}</span>`
         : `<span class="sal-pend">sin salida</span>`;
       return `
-        <label class="sal-item">
+        <label class="sal-item ${hora ? "ya-salio" : ""}">
           <input type="checkbox" class="chk-cat" data-comp="${n}" data-cat="${encodeURIComponent(cat)}" />
           <span class="sal-nombre">${cat}</span>
           ${estadoTxt}
           ${hora ? `<button class="sal-reset" data-comp="${n}" data-cat="${encodeURIComponent(cat)}" title="Quitar salida">✖</button>` : ""}
         </label>`;
     }).join("");
+
+    const todasSalieron = salidas === total && total > 0;
 
     panel.innerHTML = `
       <div class="salidas-head">
@@ -291,6 +304,9 @@ function renderSalidasCat() {
           <button class="btn-mini sel-all" data-comp="${n}">Marcar todas</button>
           <button class="btn-mini sel-none" data-comp="${n}">Desmarcar</button>
         </div>
+      </div>
+      <div class="sal-contador ${todasSalieron ? "completo" : ""}">
+        ${todasSalieron ? "✅ Todas las categorías ya salieron" : `🚩 ${salidas} de ${total} categorías ya salieron`}
       </div>
       <div class="sal-lista">${filas}</div>
       <button class="btn-salida-grande dar-sal" data-comp="${n}">▶️ DAR SALIDA</button>
