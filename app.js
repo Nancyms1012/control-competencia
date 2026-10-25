@@ -218,10 +218,36 @@ function renderClocks() {
     div.dataset.comp = n;
     const nombre = c.nombre || `Competencia ${n}`;
     const salida = c.salida ? `salió ${c.salida}` : "sin hora de salida";
-    div.innerHTML = `<span>${nombre} <small>(${salida})</small></span><b>--:--:--</b>`;
+    const txtBtn = c.salida ? "↻ Reiniciar salida" : "▶️ Dar salida ahora";
+    div.innerHTML = `
+      <span>${nombre} <small>(${salida})</small></span>
+      <b>--:--:--</b>
+      <button class="btn-salida" data-comp="${n}">${txtBtn}</button>`;
     cont.appendChild(div);
   }
+  cont.querySelectorAll(".btn-salida").forEach((btn) => {
+    btn.addEventListener("click", () => darSalida(Number(btn.dataset.comp)));
+  });
   tickClock();
+}
+
+// Fija la hora actual como hora de salida de la competencia (inicia el crono)
+function darSalida(n) {
+  const c = estado.comps[n];
+  const nombre = c.nombre || `Competencia ${n}`;
+  if (c.salida && !confirm(`La ${nombre} ya tiene hora de salida (${c.salida}). ¿Querés reiniciarla a la hora actual? Los tiempos ya registrados se recalcularán.`)) {
+    return;
+  }
+  const ahora = new Date();
+  c.salida = `${dosDig(ahora.getHours())}:${dosDig(ahora.getMinutes())}:${dosDig(ahora.getSeconds())}`;
+  guardar();
+  // reflejar en el campo de Configuración
+  const campo = document.getElementById(`comp${n}-salida`);
+  if (campo) campo.value = c.salida;
+  renderClocks();
+  renderTablaRegistro();
+  const fb = document.getElementById("dorsal-feedback");
+  if (fb) fb.innerHTML = `<span class="ok">▶️ Salida de <b>${nombre}</b> dada a las <b>${c.salida}</b>. ¡Crono en marcha!</span>`;
 }
 
 /* ---------------- Registro de llegada ---------------- */

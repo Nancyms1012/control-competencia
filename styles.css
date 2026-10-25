@@ -147,6 +147,19 @@ input[type="file"] { padding: 8px; }
 }
 .comp-clock b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; color: #93c5fd; }
 .comp-clock.waiting b { color: var(--muted); }
+.btn-salida {
+  margin-top: 8px;
+  width: 100%;
+  background: var(--green);
+  color: #fff;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.btn-salida:hover { background: #15803d; }
 
 .dorsal-box {
   display: flex;
