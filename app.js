@@ -57,6 +57,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
       renderSalidasCat();
     }
     if (tab.dataset.tab === "registro") {
+      renderClocksRegistro();
       document.getElementById("input-dorsal").focus();
     }
   });
@@ -145,6 +146,7 @@ document.getElementById("btn-guardar-config").addEventListener("click", () => {
   hint.textContent = "✅ Configuración guardada.";
   setTimeout(() => (hint.textContent = ""), 2500);
   renderClocks();
+  renderClocksRegistro();
   renderSalidasCat();
   rellenarFiltroCategorias();
 });
@@ -195,12 +197,11 @@ function tickClock() {
   if (el) el.textContent = ahoraStr;
   const el2 = document.getElementById("live-clock-salidas");
   if (el2) el2.textContent = ahoraStr;
-  // actualizar cronómetros de cada competencia
+  // actualizar cronómetros de cada competencia (en tab Salidas y tab Registro)
   document.querySelectorAll(".comp-clock").forEach((box) => {
     const n = box.dataset.comp;
-    const salida = estado.comps[n].salida;
     const bEl = box.querySelector("b");
-    const salSeg = horaASegundos(salida);
+    const salSeg = salidaMasTempranaSeg(n);
     if (salSeg == null) {
       bEl.textContent = "--:--:--";
       box.classList.add("waiting");
@@ -218,23 +219,48 @@ function tickClock() {
   });
 }
 
+// Segundos de la salida más temprana de una competencia (general o cualquier categoría)
+function salidaMasTempranaSeg(n) {
+  const c = estado.comps[n];
+  const horas = [];
+  if (c.salida) horas.push(horaASegundos(c.salida));
+  if (c.salidasCat) Object.values(c.salidasCat).forEach((h) => horas.push(horaASegundos(h)));
+  const validas = horas.filter((x) => x != null);
+  if (validas.length === 0) return null;
+  return Math.min(...validas);
+}
+
 function renderClocks() {
   const cont = document.getElementById("comp-clocks");
+  pintarCronometros(cont);
+  tickClock();
+}
+
+// Cronómetros en el tab Registro (tiempo transcurrido desde la primera salida)
+function renderClocksRegistro() {
+  const cont = document.getElementById("comp-clocks-registro");
+  if (!cont) return;
+  pintarCronometros(cont);
+  tickClock();
+}
+
+// Pinta las cajitas de cronómetro para cada competencia en el contenedor dado
+function pintarCronometros(cont) {
   cont.innerHTML = "";
   for (const n of [1, 2]) {
     const c = estado.comps[n];
-    if (!c.nombre && !c.salida && c.ciclistas.length === 0) continue;
+    if (!c.nombre && !c.salida && c.ciclistas.length === 0 && (!c.salidasCat || Object.keys(c.salidasCat).length === 0)) continue;
     const div = document.createElement("div");
     div.className = "comp-clock";
     div.dataset.comp = n;
     const nombre = c.nombre || `Competencia ${n}`;
-    const salida = c.salida ? `salió ${c.salida}` : "sin salida general";
+    const salMin = salidaMasTempranaSeg(n);
+    const etiqueta = salMin == null ? "sin salida" : `desde ${segundosAStr(salMin)}`;
     div.innerHTML = `
-      <span>${nombre} <small>(${salida})</small></span>
+      <span>${nombre} <small>(${etiqueta})</small></span>
       <b>--:--:--</b>`;
     cont.appendChild(div);
   }
-  tickClock();
 }
 
 // Da salida general a toda la competencia (hora actual)
@@ -617,6 +643,7 @@ document.getElementById("file-importar").addEventListener("change", (e) => {
       estado = cargar();
       pintarConfig();
       renderClocks();
+      renderClocksRegistro();
       renderSalidasCat();
       renderTablaRegistro();
       rellenarFiltroCategorias();
@@ -640,6 +667,7 @@ document.getElementById("btn-borrar-salidas").addEventListener("click", () => {
   }
   guardar();
   renderClocks();
+  renderClocksRegistro();
   renderSalidasCat();
   renderTablaRegistro();
   const hint = document.getElementById("salidas-hint");
@@ -670,6 +698,7 @@ document.getElementById("btn-reset").addEventListener("click", () => {
   estado = estadoInicial();
   pintarConfig();
   renderClocks();
+  renderClocksRegistro();
   renderSalidasCat();
   renderTablaRegistro();
   rellenarFiltroCategorias();
@@ -679,6 +708,7 @@ document.getElementById("btn-reset").addEventListener("click", () => {
 pintarConfig();
 renderTablaRegistro();
 renderClocks();
+renderClocksRegistro();
 renderSalidasCat();
 rellenarFiltroCategorias();
 setInterval(tickClock, 1000);
