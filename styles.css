@@ -161,6 +161,66 @@ input[type="file"] { padding: 8px; }
 }
 .btn-salida:hover { background: #15803d; }
 
+/* Salidas por categoría */
+.salidas-cat { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+.salidas-panel {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+.salidas-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.salidas-head h4 { margin: 0; font-size: 1rem; }
+.salidas-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-mini {
+  background: #1f2b3f;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.btn-mini:hover { background: #31425c; }
+.btn-mini.primary { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-mini.primary:hover { background: #15803d; }
+
+.sal-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px;
+}
+.sal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
+  background: #111b2e;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.sal-item input[type="checkbox"] { width: auto; margin: 0; }
+.sal-nombre { flex: 1; }
+.sal-hora { color: #86efac; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.sal-pend { color: var(--muted); font-size: 0.8rem; }
+.sal-reset {
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 2px;
+}
+
 .dorsal-box {
   display: flex;
   gap: 10px;

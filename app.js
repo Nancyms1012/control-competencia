@@ -8,8 +8,9 @@ const STORAGE_KEY = "controlCompetencia_v1";
 function estadoInicial() {
   return {
     comps: {
-      1: { nombre: "", distancia: "", salida: "", ciclistas: [] },
-      2: { nombre: "", distancia: "", salida: "", ciclistas: [] },
+      // salida = hora de salida general (respaldo). salidasCat = { "Categoría": "HH:MM:SS" } salidas por categoría
+      1: { nombre: "", distancia: "", salida: "", ciclistas: [], salidasCat: {} },
+      2: { nombre: "", distancia: "", salida: "", ciclistas: [], salidasCat: {} },
     },
     // llegadas: { dorsal, comp, horaLlegada(ISO), nombre, categoria, equipo }
     llegadas: [],
@@ -29,6 +30,8 @@ function cargar() {
     base.comps[2] = { ...base.comps[2], ...(data.comps?.[2] || {}) };
     base.comps[1].ciclistas = data.comps?.[1]?.ciclistas || [];
     base.comps[2].ciclistas = data.comps?.[2]?.ciclistas || [];
+    base.comps[1].salidasCat = data.comps?.[1]?.salidasCat || {};
+    base.comps[2].salidasCat = data.comps?.[2]?.salidasCat || {};
     base.llegadas = Array.isArray(data.llegadas) ? data.llegadas : [];
     return base;
   } catch (e) {
@@ -51,6 +54,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     if (tab.dataset.tab === "resultados") renderResultados();
     if (tab.dataset.tab === "registro") {
       renderClocks();
+      renderSalidasCat();
       document.getElementById("input-dorsal").focus();
     }
   });
@@ -99,6 +103,7 @@ function manejarCSV(compNum, file) {
     guardar();
     actualizarCount(compNum);
     rellenarFiltroCategorias();
+    renderSalidasCat();
   };
   reader.readAsText(file, "UTF-8");
 }
@@ -138,6 +143,7 @@ document.getElementById("btn-guardar-config").addEventListener("click", () => {
   hint.textContent = "✅ Configuración guardada.";
   setTimeout(() => (hint.textContent = ""), 2500);
   renderClocks();
+  renderSalidasCat();
   rellenarFiltroCategorias();
 });
 
@@ -245,9 +251,110 @@ function darSalida(n) {
   const campo = document.getElementById(`comp${n}-salida`);
   if (campo) campo.value = c.salida;
   renderClocks();
+  renderSalidasCat();
   renderTablaRegistro();
   const fb = document.getElementById("dorsal-feedback");
   if (fb) fb.innerHTML = `<span class="ok">▶️ Salida de <b>${nombre}</b> dada a las <b>${c.salida}</b>. ¡Crono en marcha!</span>`;
+}
+
+/* ---------------- Salidas por categoría ---------------- */
+// Categorías presentes en la base de datos de una competencia
+function categoriasDeComp(n) {
+  const set = new Set();
+  estado.comps[n].ciclistas.forEach((c) => set.add(c.categoria));
+  return [...set].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+function renderSalidasCat() {
+  const cont = document.getElementById("salidas-cat");
+  if (!cont) return;
+  cont.innerHTML = "";
+
+  for (const n of [1, 2]) {
+    const cats = categoriasDeComp(n);
+    if (cats.length === 0) continue;
+    const c = estado.comps[n];
+    const nombre = c.nombre || `Competencia ${n}`;
+
+    const panel = document.createElement("div");
+    panel.className = "salidas-panel";
+
+    const filas = cats.map((cat) => {
+      const hora = c.salidasCat[cat];
+      const estadoTxt = hora
+        ? `<span class="sal-hora">salió ${hora}</span>`
+        : `<span class="sal-pend">sin salida</span>`;
+      return `
+        <label class="sal-item">
+          <input type="checkbox" class="chk-cat" data-comp="${n}" data-cat="${encodeURIComponent(cat)}" />
+          <span class="sal-nombre">${cat}</span>
+          ${estadoTxt}
+          ${hora ? `<button class="sal-reset" data-comp="${n}" data-cat="${encodeURIComponent(cat)}" title="Quitar salida">✖</button>` : ""}
+        </label>`;
+    }).join("");
+
+    panel.innerHTML = `
+      <div class="salidas-head">
+        <h4>Salidas por categoría — ${nombre}</h4>
+        <div class="salidas-acciones">
+          <button class="btn-mini sel-all" data-comp="${n}">Marcar todas</button>
+          <button class="btn-mini sel-none" data-comp="${n}">Desmarcar</button>
+          <button class="btn-mini primary dar-sal-cat" data-comp="${n}">▶️ Dar salida a las marcadas</button>
+        </div>
+      </div>
+      <div class="sal-lista">${filas}</div>`;
+    cont.appendChild(panel);
+  }
+
+  // listeners
+  cont.querySelectorAll(".sel-all").forEach((b) =>
+    b.addEventListener("click", () => marcarCats(Number(b.dataset.comp), true)));
+  cont.querySelectorAll(".sel-none").forEach((b) =>
+    b.addEventListener("click", () => marcarCats(Number(b.dataset.comp), false)));
+  cont.querySelectorAll(".dar-sal-cat").forEach((b) =>
+    b.addEventListener("click", () => darSalidaCategorias(Number(b.dataset.comp))));
+  cont.querySelectorAll(".sal-reset").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      quitarSalidaCategoria(Number(b.dataset.comp), decodeURIComponent(b.dataset.cat));
+    }));
+}
+
+function marcarCats(n, valor) {
+  document.querySelectorAll(`.chk-cat[data-comp="${n}"]`).forEach((chk) => (chk.checked = valor));
+}
+
+function darSalidaCategorias(n) {
+  const marcadas = [...document.querySelectorAll(`.chk-cat[data-comp="${n}"]:checked`)]
+    .map((chk) => decodeURIComponent(chk.dataset.cat));
+  if (marcadas.length === 0) {
+    alert("Marcá al menos una categoría para darle salida.");
+    return;
+  }
+  // avisar si alguna ya tenía salida
+  const c = estado.comps[n];
+  const yaTenian = marcadas.filter((cat) => c.salidasCat[cat]);
+  if (yaTenian.length > 0 &&
+      !confirm(`Las categorías ya con salida se recalcularán: ${yaTenian.join(", ")}. ¿Continuar?`)) {
+    return;
+  }
+  const ahora = new Date();
+  const hora = `${dosDig(ahora.getHours())}:${dosDig(ahora.getMinutes())}:${dosDig(ahora.getSeconds())}`;
+  marcadas.forEach((cat) => (c.salidasCat[cat] = hora));
+  guardar();
+  renderSalidasCat();
+  renderTablaRegistro();
+  const nombre = c.nombre || `Competencia ${n}`;
+  const fb = document.getElementById("dorsal-feedback");
+  if (fb) fb.innerHTML = `<span class="ok">▶️ Salida dada a las <b>${hora}</b> para ${marcadas.length} categoría(s) de <b>${nombre}</b>: ${marcadas.join(", ")}.</span>`;
+}
+
+function quitarSalidaCategoria(n, cat) {
+  if (!confirm(`¿Quitar la hora de salida de la categoría "${cat}"? Volverá a usar la salida general si existe.`)) return;
+  delete estado.comps[n].salidasCat[cat];
+  guardar();
+  renderSalidasCat();
+  renderTablaRegistro();
 }
 
 /* ---------------- Registro de llegada ---------------- */
@@ -301,9 +408,16 @@ function registrarLlegada() {
   renderTablaRegistro();
 }
 
-// Calcula el tiempo = horaLlegada - horaSalida de su competencia
+// Hora de salida efectiva de un ciclista: usa la de su categoría si existe, si no la general de la competencia
+function salidaEfectiva(comp, categoria) {
+  const c = estado.comps[comp];
+  const porCat = c.salidasCat && c.salidasCat[categoria];
+  return porCat || c.salida || "";
+}
+
+// Calcula el tiempo = horaLlegada - horaSalida (de la categoría o general)
 function calcularTiempo(llegada) {
-  const salida = estado.comps[llegada.comp].salida;
+  const salida = salidaEfectiva(llegada.comp, llegada.categoria);
   const salSeg = horaASegundos(salida);
   if (salSeg == null) return "sin hora salida";
   const d = new Date(llegada.horaLlegada);
@@ -313,7 +427,7 @@ function calcularTiempo(llegada) {
 }
 
 function tiempoSegundos(llegada) {
-  const salSeg = horaASegundos(estado.comps[llegada.comp].salida);
+  const salSeg = horaASegundos(salidaEfectiva(llegada.comp, llegada.categoria));
   if (salSeg == null) return Infinity;
   const llegadaSeg = tiempoDelDiaSeg(new Date(llegada.horaLlegada));
   return llegadaSeg - salSeg;
@@ -475,6 +589,7 @@ document.getElementById("file-importar").addEventListener("change", (e) => {
       estado = cargar();
       pintarConfig();
       renderClocks();
+      renderSalidasCat();
       renderTablaRegistro();
       rellenarFiltroCategorias();
       alert("✅ Respaldo importado correctamente.");
@@ -493,6 +608,7 @@ document.getElementById("btn-reset").addEventListener("click", () => {
   estado = estadoInicial();
   pintarConfig();
   renderClocks();
+  renderSalidasCat();
   renderTablaRegistro();
   rellenarFiltroCategorias();
 });
@@ -501,5 +617,6 @@ document.getElementById("btn-reset").addEventListener("click", () => {
 pintarConfig();
 renderTablaRegistro();
 renderClocks();
+renderSalidasCat();
 rellenarFiltroCategorias();
 setInterval(tickClock, 1000);

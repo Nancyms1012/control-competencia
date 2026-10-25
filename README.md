@@ -7,7 +7,9 @@ Funciona **offline** en un solo dispositivo usando `localStorage`, con respaldo 
 ## Pantallas
 
 1. **⚙️ Configuración** — Datos de las dos competencias (nombre, distancia, hora de salida) e importación de la base de datos de ciclistas desde un **CSV delimitado por `;`**.
-2. **⏱️ Registro** — Reloj en vivo + cronómetros por competencia. Se digita el **dorsal** y Enter: autocompleta nombre, categoría, equipo, hora de llegada y calcula el **tiempo** (hora de llegada − hora de salida de su competencia).
+2. **⏱️ Registro** — Reloj en vivo + cronómetros por competencia. Se digita el **dorsal** y Enter: autocompleta nombre, categoría, equipo, hora de llegada y calcula el **tiempo** (hora de llegada − hora de salida).
+   - **Dar salida general** por competencia con la hora actual (botón ▶️).
+   - **Salidas escalonadas por categoría**: panel con todas las categorías de cada competencia; se marcan las que salen juntas y se les da salida con la hora actual. El tiempo de cada ciclista usa la hora de salida de **su categoría** si la tiene; si no, usa la salida general de la competencia.
 3. **🏆 Resultados** — Tiempos ordenados de menor a mayor, agrupados por **competencia y categoría**, con podio (🥇🥈🥉). Filtros por competencia y categoría. Botón de imprimir/PDF.
 
 ## Formato del CSV
